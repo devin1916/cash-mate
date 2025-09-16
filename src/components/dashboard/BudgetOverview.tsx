@@ -3,6 +3,7 @@ import { AlertTriangle, CheckCircle, Clock } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { formatLKR } from '../../utils/currency';
 
+
 const BudgetOverview: React.FC = () => {
   const { budgets, transactions } = useApp();
 

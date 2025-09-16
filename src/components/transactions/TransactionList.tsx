@@ -3,6 +3,9 @@ import { Search, Filter, Download, Edit, Trash2, Calendar } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { formatLKR } from '../../utils/currency';
 import { format } from 'date-fns';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+
 
 const TransactionList: React.FC = () => {
   const { transactions, categories, deleteTransaction } = useApp();
@@ -42,8 +45,33 @@ const TransactionList: React.FC = () => {
   };
 
   const exportToPDF = () => {
-    // This would typically use a PDF library like jsPDF
-    alert('PDF export functionality would be implemented here');
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.text('Transactions', 14, 16);
+
+    const tableColumn = ['Date', 'Description', 'Category', 'Type', 'Amount'];
+    const tableRows: any[] = [];
+
+    filteredTransactions.forEach((transaction) => {
+      const transactionData = [
+        format(new Date(transaction.date), 'yyyy-MM-dd'),
+        transaction.description,
+        transaction.category,
+        transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1),
+        formatLKR(transaction.amount),
+      ];
+      tableRows.push(transactionData);
+    });
+
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      startY: 22,
+      styles: { fontSize: 10 },
+      headStyles: { fillColor: [59, 130, 246] }, // blue
+    });
+
+    doc.save('transactions.pdf');
   };
 
   return (
