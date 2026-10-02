@@ -77,6 +77,24 @@
 4. **Open your browser**
    Navigate to `http://localhost:5173` to view the application
 
+### Backend API (Express + MySQL)
+
+The frontend now talks to a real REST API in [`server/`](server/README.md):
+
+```bash
+cd server
+npm install
+cp .env.example .env        # fill DB + JWT secrets
+npm run migrate              # create all MySQL tables
+npm run seed                 # system categories, payment methods, admin
+npm run dev                  # API on http://localhost:4000
+```
+
+In development the Vite dev server proxies `/api` to the Express server,
+so no CORS setup is needed. In production the API serves the built `dist/`
+from a single origin. See [server/README.md](server/README.md) for the full
+endpoint list, security notes and testing instructions.
+
 ### Build for Production
 
 ```bash

@@ -7,9 +7,14 @@ import {
   Target, 
   Settings, 
   LogOut,
-  Wallet
+  Wallet,
+  PiggyBank,
+  Repeat,
+  Receipt,
+  Bell
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useApp } from '../../context/AppContext';
 
 interface SidebarProps {
   activeTab: string;
@@ -25,13 +30,18 @@ const Sidebar: React.FC<SidebarProps> = ({
   setIsMobileOpen 
 }) => {
   const { logout, user } = useAuth();
+  const { notificationsMeta } = useApp();
 
-  const menuItems = [
+  const menuItems: { id: string; label: string; icon: typeof Home; badge?: number }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
     { id: 'add-transaction', label: 'Add Transaction', icon: PlusCircle },
     { id: 'transactions', label: 'Transactions', icon: List },
-    { id: 'reports', label: 'Reports', icon: PieChart },
     { id: 'budgets', label: 'Budgets', icon: Target },
+    { id: 'goals', label: 'Savings Goals', icon: PiggyBank },
+    { id: 'recurring', label: 'Recurring', icon: Repeat },
+    { id: 'bills', label: 'Bills', icon: Receipt },
+    { id: 'notifications', label: 'Notifications', icon: Bell, badge: notificationsMeta.unread || 0 },
+    { id: 'reports', label: 'Reports', icon: PieChart },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
@@ -113,8 +123,13 @@ const Sidebar: React.FC<SidebarProps> = ({
                     }
                   `}
                 >
-                  <Icon className={`mr-3 w-5 h-5 ${isActive ? 'text-white' : 'text-gray-500'}`} />
-                  {item.label}
+                <Icon className={`mr-3 w-5 h-5 ${isActive ? 'text-white' : 'text-gray-500'}`} />
+                {item.label}
+                {item.badge !== undefined && item.badge > 0 && (
+                  <span className={`ml-auto text-xs font-bold px-2 py-0.5 rounded-full ${isActive ? 'bg-white/20 text-white' : 'bg-red-100 text-red-600'}`}>
+                    {item.badge}
+                  </span>
+                )}
                 </button>
               );
             })}

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Mail, Lock, User, Chrome, Facebook } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User, Chrome, Facebook, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { ApiError } from '../../api/client';
 
 interface RegisterFormProps {
   onSwitchToLogin: () => void;
@@ -14,39 +15,40 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { register, loginWithGoogle, loginWithFacebook } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+    setFieldErrors({});
     if (password !== confirmPassword) {
-      alert('Passwords do not match');
+      setFieldErrors({ confirmPassword: 'Passwords do not match' });
       return;
     }
     setIsLoading(true);
     try {
       await register(name, email, password);
-    } catch (error) {
-      console.error('Registration failed:', error);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+        setFieldErrors(err.fields || {});
+      } else {
+        setError('Unable to create your account, please try again');
+      }
     }
     setIsLoading(false);
   };
 
-  const handleGoogleLogin = async () => {
+  const handleSocialLogin = async (provider: 'google' | 'facebook') => {
+    setError(null);
     setIsLoading(true);
     try {
-      await loginWithGoogle();
-    } catch (error) {
-      console.error('Google login failed:', error);
-    }
-    setIsLoading(false);
-  };
-
-  const handleFacebookLogin = async () => {
-    setIsLoading(true);
-    try {
-      await loginWithFacebook();
-    } catch (error) {
-      console.error('Facebook login failed:', error);
+      if (provider === 'google') await loginWithGoogle();
+      else await loginWithFacebook();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Social sign-in is not available yet');
     }
     setIsLoading(false);
   };
@@ -57,6 +59,13 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) => {
         <h2 className="text-3xl font-bold text-gray-900 mb-2">Create Account</h2>
         <p className="text-gray-600">Join CashMate to start tracking your finances</p>
       </div>
+
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start">
+          <AlertCircle className="w-5 h-5 text-red-500 mr-2 mt-0.5 shrink-0" />
+          <p className="text-sm text-red-700">{error}</p>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
@@ -72,6 +81,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) => {
               required
             />
           </div>
+          {fieldErrors.name && <p className="mt-1 text-xs text-red-600">{fieldErrors.name}</p>}
         </div>
 
         <div>
@@ -87,6 +97,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) => {
               required
             />
           </div>
+          {fieldErrors.email && <p className="mt-1 text-xs text-red-600">{fieldErrors.email}</p>}
         </div>
 
         <div>
@@ -109,6 +120,8 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) => {
               {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
           </div>
+          {fieldErrors.password && <p className="mt-1 text-xs text-red-600">{fieldErrors.password}</p>}
+          <p className="mt-1 text-xs text-gray-500">At least 8 characters, with a letter and a number</p>
         </div>
 
         <div>
@@ -119,7 +132,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) => {
               type={showConfirmPassword ? 'text' : 'password'}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
               placeholder="Confirm your password"
               required
             />
@@ -131,6 +144,9 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) => {
               {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
           </div>
+          {fieldErrors.confirmPassword && (
+            <p className="mt-1 text-xs text-red-600">{fieldErrors.confirmPassword}</p>
+          )}
         </div>
 
         <button
@@ -155,7 +171,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) => {
         <div className="mt-6 grid grid-cols-2 gap-3">
           <button
             type="button"
-            onClick={handleGoogleLogin}
+            onClick={() => handleSocialLogin('google')}
             disabled={isLoading}
             className="w-full inline-flex justify-center py-3 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors duration-200 disabled:opacity-50"
           >
@@ -165,7 +181,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) => {
 
           <button
             type="button"
-            onClick={handleFacebookLogin}
+            onClick={() => handleSocialLogin('facebook')}
             disabled={isLoading}
             className="w-full inline-flex justify-center py-3 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors duration-200 disabled:opacity-50"
           >

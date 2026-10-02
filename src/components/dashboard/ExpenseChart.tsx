@@ -10,7 +10,9 @@ import {
   ArcElement,
 } from 'chart.js';
 import { Doughnut, Bar } from 'react-chartjs-2';
+import type { TooltipItem } from 'chart.js';
 import { useApp } from '../../context/AppContext';
+import { getCurrency, formatMoney } from '../../utils/currency';
 
 ChartJS.register(
   CategoryScale,
@@ -22,42 +24,22 @@ ChartJS.register(
   ArcElement
 );
 
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 const ExpenseChart: React.FC = () => {
-  const { transactions, categories } = useApp();
+  const { summary } = useApp();
 
-  // Filter current month expenses
-  const currentMonth = new Date().getMonth();
-  const currentYear = new Date().getFullYear();
-  
-  const currentMonthExpenses = transactions.filter(t => {
-    const transactionDate = new Date(t.date);
-    return t.type === 'expense' && 
-           transactionDate.getMonth() === currentMonth && 
-           transactionDate.getFullYear() === currentYear;
-  });
-
-  // Group expenses by category
-  const expensesByCategory = currentMonthExpenses.reduce((acc, transaction) => {
-    const category = transaction.category;
-    acc[category] = (acc[category] || 0) + transaction.amount;
-    return acc;
-  }, {} as Record<string, number>);
-
-  const categoryNames = Object.keys(expensesByCategory);
-  const categoryAmounts = Object.values(expensesByCategory);
-  
-  const getCategoryColor = (categoryName: string) => {
-    const category = categories.find(c => c.name === categoryName);
-    return category?.color || '#6b7280';
-  };
+  const breakdown = summary?.categoryBreakdown ?? [];
+  const categoryNames = breakdown.map((c) => c.category);
+  const categoryAmounts = breakdown.map((c) => c.amount);
 
   const doughnutData = {
     labels: categoryNames,
     datasets: [
       {
         data: categoryAmounts,
-        backgroundColor: categoryNames.map(name => getCategoryColor(name)),
-        borderColor: categoryNames.map(name => getCategoryColor(name)),
+        backgroundColor: breakdown.map((c) => c.color || '#6b7280'),
+        borderColor: breakdown.map((c) => c.color || '#6b7280'),
         borderWidth: 2,
       },
     ],
@@ -74,54 +56,34 @@ const ExpenseChart: React.FC = () => {
         text: 'Expenses by Category',
         font: {
           size: 16,
-          weight: 'bold',
+          weight: 'bold' as const,
+        },
+      },
+      tooltip: {
+        callbacks: {
+          label: (ctx: TooltipItem<'doughnut'>) => ` ${ctx.label}: ${formatMoney(Number(ctx.parsed))}`,
         },
       },
     },
     maintainAspectRatio: false,
   };
 
-  // Last 6 months bar chart
-  const last6Months = Array.from({ length: 6 }, (_, i) => {
-    const date = new Date();
-    date.setMonth(date.getMonth() - i);
-    return {
-      month: date.toLocaleString('default', { month: 'short' }),
-      year: date.getFullYear(),
-      monthIndex: date.getMonth()
-    };
-  }).reverse();
-
-  const monthlyData = last6Months.map(({ monthIndex, year }) => {
-    const monthTransactions = transactions.filter(t => {
-      const transactionDate = new Date(t.date);
-      return transactionDate.getMonth() === monthIndex && 
-             transactionDate.getFullYear() === year;
-    });
-
-    const income = monthTransactions
-      .filter(t => t.type === 'income')
-      .reduce((sum, t) => sum + t.amount, 0);
-
-    const expenses = monthTransactions
-      .filter(t => t.type === 'expense')
-      .reduce((sum, t) => sum + t.amount, 0);
-
-    return { income, expenses };
-  });
+  // Monthly income vs expenses from the API (last 6 months, server-side)
+  const monthly = summary?.monthly ?? [];
+  const labels = monthly.map((m) => MONTH_LABELS[m.month - 1] || m.month);
 
   const barData = {
-    labels: last6Months.map(m => m.month),
+    labels,
     datasets: [
       {
         label: 'Income',
-        data: monthlyData.map(d => d.income),
+        data: monthly.map((m) => m.income),
         backgroundColor: '#10b981',
         borderRadius: 6,
       },
       {
         label: 'Expenses',
-        data: monthlyData.map(d => d.expenses),
+        data: monthly.map((m) => m.expenses),
         backgroundColor: '#ef4444',
         borderRadius: 6,
       },
@@ -139,7 +101,7 @@ const ExpenseChart: React.FC = () => {
         text: 'Income vs Expenses - Last 6 Months',
         font: {
           size: 16,
-          weight: 'bold',
+          weight: 'bold' as const,
         },
       },
     },
@@ -147,8 +109,8 @@ const ExpenseChart: React.FC = () => {
       y: {
         beginAtZero: true,
         ticks: {
-          callback: function(value: any) {
-            return 'LKR ' + value.toLocaleString();
+          callback: function (value: string | number) {
+            return `${getCurrency()} ${Number(value).toLocaleString()}`;
           },
         },
       },
@@ -165,8 +127,11 @@ const ExpenseChart: React.FC = () => {
             {categoryNames.length > 0 ? (
               <Doughnut data={doughnutData} options={doughnutOptions} />
             ) : (
-              <div className="flex items-center justify-center h-full text-gray-500">
-                No expense data available
+              <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                <p>No expense data available</p>
+                <p className="text-sm text-gray-400 mt-1">
+                  Add expenses to see your spending breakdown
+                </p>
               </div>
             )}
           </div>
@@ -176,23 +141,22 @@ const ExpenseChart: React.FC = () => {
         <div className="space-y-4">
           <h4 className="font-semibold text-gray-900">Category Breakdown</h4>
           <div className="space-y-3">
-            {categoryNames.map((category, index) => {
-              const amount = categoryAmounts[index];
+            {breakdown.map((item) => {
               const total = categoryAmounts.reduce((sum, amt) => sum + amt, 0);
-              const percentage = total > 0 ? (amount / total) * 100 : 0;
-              
+              const percentage = total > 0 ? (item.amount / total) * 100 : 0;
+
               return (
-                <div key={category} className="flex items-center justify-between">
+                <div key={item.categoryId} className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
-                    <div 
+                    <div
                       className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: getCategoryColor(category) }}
+                      style={{ backgroundColor: item.color || '#6b7280' }}
                     />
-                    <span className="text-sm font-medium text-gray-700">{category}</span>
+                    <span className="text-sm font-medium text-gray-700">{item.category}</span>
                   </div>
                   <div className="text-right">
                     <div className="text-sm font-semibold text-gray-900">
-                      LKR {amount.toLocaleString()}
+                      {formatMoney(item.amount)}
                     </div>
                     <div className="text-xs text-gray-500">
                       {percentage.toFixed(1)}%
@@ -201,6 +165,9 @@ const ExpenseChart: React.FC = () => {
                 </div>
               );
             })}
+            {breakdown.length === 0 && (
+              <p className="text-sm text-gray-400">No spending recorded for this period.</p>
+            )}
           </div>
         </div>
       </div>
@@ -208,7 +175,13 @@ const ExpenseChart: React.FC = () => {
       {/* Bar Chart */}
       <div className="bg-gray-50 p-4 rounded-xl">
         <div className="h-80">
-          <Bar data={barData} options={barOptions} />
+          {monthly.length > 0 ? (
+            <Bar data={barData} options={barOptions} />
+          ) : (
+            <div className="flex items-center justify-center h-full text-gray-500">
+              Add income and expenses to see your monthly trends
+            </div>
+          )}
         </div>
       </div>
     </div>

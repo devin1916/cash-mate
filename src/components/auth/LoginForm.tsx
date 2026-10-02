@@ -1,45 +1,41 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Mail, Lock, Chrome, Facebook } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, Chrome, Facebook, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { ApiError } from '../../api/client';
 
 interface LoginFormProps {
   onSwitchToRegister: () => void;
+  onSwitchToForgot: () => void;
 }
 
-const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
+const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister, onSwitchToForgot }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { login, loginWithGoogle, loginWithFacebook } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     setIsLoading(true);
     try {
       await login(email, password);
-    } catch (error) {
-      console.error('Login failed:', error);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Unable to sign in, please try again');
     }
     setIsLoading(false);
   };
 
-  const handleGoogleLogin = async () => {
+  const handleSocialLogin = async (provider: 'google' | 'facebook') => {
+    setError(null);
     setIsLoading(true);
     try {
-      await loginWithGoogle();
-    } catch (error) {
-      console.error('Google login failed:', error);
-    }
-    setIsLoading(false);
-  };
-
-  const handleFacebookLogin = async () => {
-    setIsLoading(true);
-    try {
-      await loginWithFacebook();
-    } catch (error) {
-      console.error('Facebook login failed:', error);
+      if (provider === 'google') await loginWithGoogle();
+      else await loginWithFacebook();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Social sign-in is not available yet');
     }
     setIsLoading(false);
   };
@@ -50,6 +46,13 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
         <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h2>
         <p className="text-gray-600">Sign in to your CashMate account</p>
       </div>
+
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start">
+          <AlertCircle className="w-5 h-5 text-red-500 mr-2 mt-0.5 shrink-0" />
+          <p className="text-sm text-red-700">{error}</p>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
@@ -68,7 +71,16 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-sm font-medium text-gray-700">Password</label>
+            <button
+              type="button"
+              onClick={onSwitchToForgot}
+              className="text-sm font-medium text-blue-600 hover:text-blue-500 transition-colors duration-200"
+            >
+              Forgot password?
+            </button>
+          </div>
           <div className="relative">
             <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
@@ -111,7 +123,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
         <div className="mt-6 grid grid-cols-2 gap-3">
           <button
             type="button"
-            onClick={handleGoogleLogin}
+            onClick={() => handleSocialLogin('google')}
             disabled={isLoading}
             className="w-full inline-flex justify-center py-3 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors duration-200 disabled:opacity-50"
           >
@@ -121,7 +133,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
 
           <button
             type="button"
-            onClick={handleFacebookLogin}
+            onClick={() => handleSocialLogin('facebook')}
             disabled={isLoading}
             className="w-full inline-flex justify-center py-3 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors duration-200 disabled:opacity-50"
           >

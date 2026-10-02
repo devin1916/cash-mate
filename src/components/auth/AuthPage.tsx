@@ -1,10 +1,26 @@
 import React, { useState } from 'react';
-import { Wallet } from 'lucide-react';
+import { Wallet, AlertTriangle, X } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import LoginForm from './LoginForm';
 import RegisterForm from './RegisterForm';
+import ForgotPasswordForm from './ForgotPasswordForm';
+import ResetPasswordForm from './ResetPasswordForm';
+
+type AuthMode = 'login' | 'register' | 'forgot' | 'reset';
 
 const AuthPage: React.FC = () => {
-  const [isLogin, setIsLogin] = useState(true);
+  const { sessionExpired, dismissSessionExpired } = useAuth();
+  const initialToken =
+    typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('token') : null;
+  const [mode, setMode] = useState<AuthMode>(initialToken ? 'reset' : 'login');
+
+  const goToLogin = () => {
+    setMode('login');
+    // Clean the reset token out of the URL
+    if (typeof window !== 'undefined' && window.location.search) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-teal-50">
@@ -55,10 +71,39 @@ const AuthPage: React.FC = () => {
               </div>
             </div>
 
-            {isLogin ? (
-              <LoginForm onSwitchToRegister={() => setIsLogin(false)} />
-            ) : (
-              <RegisterForm onSwitchToLogin={() => setIsLogin(true)} />
+            {sessionExpired && (
+              <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start justify-between">
+                <div className="flex items-start">
+                  <AlertTriangle className="w-5 h-5 text-amber-500 mr-2 mt-0.5 shrink-0" />
+                  <p className="text-sm text-amber-800">
+                    Your session has expired. Please sign in again.
+                  </p>
+                </div>
+                <button
+                  onClick={dismissSessionExpired}
+                  className="text-amber-500 hover:text-amber-700"
+                  aria-label="Dismiss"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {mode === 'login' && (
+              <>
+                <LoginForm
+                  onSwitchToRegister={() => setMode('register')}
+                  onSwitchToForgot={() => setMode('forgot')}
+                />
+              </>
+            )}
+            {mode === 'register' && <RegisterForm onSwitchToLogin={() => setMode('login')} />}
+            {mode === 'forgot' && <ForgotPasswordForm onSwitchToLogin={() => setMode('login')} />}
+            {mode === 'reset' && initialToken && (
+              <ResetPasswordForm token={initialToken} onDone={goToLogin} />
+            )}
+            {mode === 'reset' && !initialToken && (
+              <ForgotPasswordForm onSwitchToLogin={() => setMode('login')} />
             )}
           </div>
         </div>

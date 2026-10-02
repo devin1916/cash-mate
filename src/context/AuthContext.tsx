@@ -1,5 +1,7 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { AuthState, User } from '../types';
+import api, { setAccessToken, refreshSession, ApiError } from '../api/client';
+import { setCurrency } from '../utils/currency';
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
@@ -18,81 +20,98 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [initializing, setInitializing] = useState(true);
+  const [sessionExpired, setSessionExpired] = useState(false);
+
+  const applyUser = useCallback((next: User | null) => {
+    setUser(next);
+    setIsAuthenticated(Boolean(next));
+    setCurrency(next?.currency);
+  }, []);
+
+  // Restore session on app load using the httpOnly refresh cookie.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const data = await refreshSession();
+      if (cancelled) return;
+      if (data?.user) applyUser(data.user);
+      setInitializing(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [applyUser]);
+
+  // Automatic logout when the session can no longer be refreshed.
+  useEffect(() => {
+    const onExpired = () => {
+      applyUser(null);
+      setSessionExpired(true);
+    };
+    window.addEventListener('auth:expired', onExpired);
+    return () => window.removeEventListener('auth:expired', onExpired);
+  }, [applyUser]);
 
   const login = async (email: string, password: string) => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const mockUser: User = {
-      id: '1',
-      name: 'Name',
-      email,
-      avatar: 'https://t4.ftcdn.net/jpg/12/49/12/63/360_F_1249126338_leS5yTD2NdGuTra86mGyq9heEAxLbX5O.jpg',
-      createdAt: new Date()
-    };
-    
-    setUser(mockUser);
-    setIsAuthenticated(true);
+    const res = await api.post('/auth/login', { email, password });
+    setAccessToken(res.data!.accessToken);
+    setSessionExpired(false);
+    applyUser(res.data!.user);
   };
 
-  const register = async (name: string, email: string, password: string) => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const mockUser: User = {
-      id: '1',
-      name,
-      email,
-      createdAt: new Date()
-    };
-    
-    setUser(mockUser);
-    setIsAuthenticated(true);
+  const register = async (name: string, email: string, password: string, phone?: string) => {
+    const res = await api.post('/auth/register', { name, email, password, phone });
+    setAccessToken(res.data!.accessToken);
+    setSessionExpired(false);
+    applyUser(res.data!.user);
   };
+
+  const logout = async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch {
+      /* best effort - local state is cleared regardless */
+    }
+    setAccessToken(null);
+    applyUser(null);
+    setSessionExpired(false);
+  };
+
+  const refreshUser = async () => {
+    try {
+      const res = await api.get('/auth/me');
+      applyUser(res.data!.user);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) applyUser(null);
+    }
+  };
+
+  const updateUser = (next: User) => applyUser(next);
+
+  const dismissSessionExpired = () => setSessionExpired(false);
 
   const loginWithGoogle = async () => {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const mockUser: User = {
-      id: '1',
-      name: 'Google User',
-      email: 'user@gmail.com',
-      avatar: 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150',
-      createdAt: new Date()
-    };
-    
-    setUser(mockUser);
-    setIsAuthenticated(true);
+    throw new ApiError('Google sign-in is not enabled yet. Use email and password.', 501);
   };
 
   const loginWithFacebook = async () => {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const mockUser: User = {
-      id: '1',
-      name: 'Facebook User',
-      email: 'user@facebook.com',
-      avatar: 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150',
-      createdAt: new Date()
-    };
-    
-    setUser(mockUser);
-    setIsAuthenticated(true);
-  };
-
-  const logout = () => {
-    setUser(null);
-    setIsAuthenticated(false);
+    throw new ApiError('Facebook sign-in is not enabled yet. Use email and password.', 501);
   };
 
   const value: AuthState = {
     isAuthenticated,
     user,
+    initializing,
+    sessionExpired,
     login,
     register,
     loginWithGoogle,
     loginWithFacebook,
-    logout
+    logout,
+    updateUser,
+    refreshUser,
+    dismissSessionExpired,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

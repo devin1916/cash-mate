@@ -1,0 +1,23 @@
+# Optional: run MySQL locally with Docker for CashMate development.
+# Usage:  docker compose up -d
+# Then create the database:  mysql -uroot -p -e "CREATE DATABASE cashmate CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: cashmate-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: cashmate
+      MYSQL_USER: cashmate
+      MYSQL_PASSWORD: cashmate
+    ports:
+      - '3306:3306'
+    volumes:
+      - cashmate-mysql-data:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password
+
+volumes:
+  cashmate-mysql-data:
